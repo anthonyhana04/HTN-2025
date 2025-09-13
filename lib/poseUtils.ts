@@ -50,14 +50,14 @@ export interface PoseLandmarks {
   worldLandmarks?: PoseLandmark[];
 }
 
-export type PostureStatus = 'good' | 'slouching' | 'head-forward' | 'borderline';
+export type PostureStatus = 'good' | 'slouching' | 'borderline';
 
 export interface PostureMetrics {
   headNeckAngle: number; // degrees
-  forwardHeadOffset: number; // normalized by shoulder width
   trunkFlexion: number; // degrees
   shoulderWidth: number; // normalized
   confidence: number; // average visibility of key landmarks
+  spineVisible: boolean; // shoulders and hips confidently visible
 }
 
 export interface PostureAnalysis {
@@ -134,10 +134,10 @@ export function analyzePosture(landmarks: PoseLandmark[]): PostureAnalysis {
       status: 'borderline',
       metrics: {
         headNeckAngle: 0,
-        forwardHeadOffset: 0,
         trunkFlexion: 0,
         shoulderWidth: 0,
         confidence,
+        spineVisible: false,
       },
       severity: 'low',
       message: 'Insufficient pose visibility for analysis',
@@ -151,13 +151,22 @@ export function analyzePosture(landmarks: PoseLandmark[]): PostureAnalysis {
   const shoulderMidpoint = getMidpoint(leftShoulder, rightShoulder);
   const hipMidpoint = getMidpoint(leftHip, rightHip);
   
-  // Create vertical reference points
+  // Create vertical reference points (canvas/mediapipe y increases downward)
   const verticalUp = { ...shoulderMidpoint, y: shoulderMidpoint.y - 1 };
   const verticalDown = { ...shoulderMidpoint, y: shoulderMidpoint.y + 1 };
   
-  // Calculate trunk flexion (shoulder to hip angle with vertical)
-  // This measures how much the spine is bent forward
-  const trunkFlexion = calculateAngle(verticalUp, shoulderMidpoint, hipMidpoint);
+  // Determine visibility of spine landmarks
+  const leftShoulderVisible = isLandmarkVisible(leftShoulder, 0.3);
+  const rightShoulderVisible = isLandmarkVisible(rightShoulder, 0.3);
+  const leftHipVisible = isLandmarkVisible(leftHip, 0.3);
+  const rightHipVisible = isLandmarkVisible(rightHip, 0.3);
+  const spineVisible = leftShoulderVisible && rightShoulderVisible && leftHipVisible && rightHipVisible;
+
+  // Calculate trunk flexion (shoulder to hip angle with vertical DOWN)
+  // Using downward vertical so upright posture ≈ 0°
+  const trunkFlexion = spineVisible
+    ? calculateAngle(verticalDown, shoulderMidpoint, hipMidpoint)
+    : 0;
   
   // Calculate head-neck angle
   // Use ear midpoint for head position, or nose if ears not visible
@@ -167,17 +176,12 @@ export function analyzePosture(landmarks: PoseLandmark[]): PostureAnalysis {
   
   const headNeckAngle = calculateAngle(verticalUp, shoulderMidpoint, headCenter);
 
-  // Calculate forward head offset (lateral displacement)
-  const shoulderCenterX = shoulderMidpoint.x;
-  const headCenterX = headCenter.x;
-  const forwardHeadOffset = Math.abs(headCenterX - shoulderCenterX) / shoulderWidth;
-
   const metrics: PostureMetrics = {
     headNeckAngle,
-    forwardHeadOffset,
     trunkFlexion,
     shoulderWidth,
     confidence,
+    spineVisible,
   };
 
   // Classification logic
@@ -185,7 +189,11 @@ export function analyzePosture(landmarks: PoseLandmark[]): PostureAnalysis {
   let severity: 'low' | 'medium' | 'high';
   let message: string;
 
-  if (trunkFlexion <= 15 && forwardHeadOffset <= 0.15) {
+  if (!spineVisible) {
+    status = 'borderline';
+    severity = 'low';
+    message = 'Spine not in view';
+  } else if (trunkFlexion <= 15) {
     status = 'good';
     severity = 'low';
     message = 'Good posture!';
@@ -193,10 +201,6 @@ export function analyzePosture(landmarks: PoseLandmark[]): PostureAnalysis {
     status = 'slouching';
     severity = trunkFlexion > 35 ? 'high' : 'medium';
     message = `Slouching detected (${trunkFlexion.toFixed(1)}° trunk flexion)`;
-  } else if (forwardHeadOffset > 0.30) {
-    status = 'head-forward';
-    severity = forwardHeadOffset > 0.45 ? 'high' : 'medium';
-    message = `Forward head posture detected (${(forwardHeadOffset * 100).toFixed(1)}% offset)`;
   } else {
     status = 'borderline';
     severity = 'low';

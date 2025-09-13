@@ -131,9 +131,10 @@ export default function PoseDetection({ onPostureUpdate }: PoseDetectionProps) {
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw landmarks
+    // Draw landmarks (skip all face points 0-10: nose, eyes, ears, mouth)
     result.landmarks.forEach((landmarkList) => {
       landmarkList.forEach((landmark, index) => {
+        if (index >= 0 && index <= 10) return;
         if (landmark.visibility && landmark.visibility > 0.3) {
           const x = landmark.x * canvas.width;
           const y = landmark.y * canvas.height;
@@ -164,10 +165,6 @@ export default function PoseDetection({ onPostureUpdate }: PoseDetectionProps) {
     height: number
   ) => {
     const connections = [
-      // Face
-      [0, 1], [1, 2], [2, 3], [3, 7], // Left eye
-      [0, 4], [4, 5], [5, 6], [6, 8], // Right eye
-      [9, 10], // Mouth
       // Torso
       [11, 12], // Shoulders
       [11, 23], [12, 24], // Shoulder to hip
@@ -204,6 +201,38 @@ export default function PoseDetection({ onPostureUpdate }: PoseDetectionProps) {
         ctx.stroke();
       }
     });
+
+    // Draw an inferred neck line from shoulder midpoint to head center (ears midpoint or nose)
+    const leftShoulder = landmarks[11];
+    const rightShoulder = landmarks[12];
+    const leftEar = landmarks[7];
+    const rightEar = landmarks[8];
+    const nose = landmarks[0];
+
+    const isVisible = (lm: any) => lm && lm.visibility && lm.visibility > 0.3;
+
+    let headCenter: any | null = null;
+    if (isVisible(leftEar) && isVisible(rightEar)) {
+      headCenter = {
+        x: (leftEar.x + rightEar.x) / 2,
+        y: (leftEar.y + rightEar.y) / 2,
+        visibility: Math.min(leftEar.visibility, rightEar.visibility),
+      };
+    } else if (isVisible(nose)) {
+      headCenter = nose;
+    }
+
+    if (isVisible(leftShoulder) && isVisible(rightShoulder) && headCenter) {
+      const shoulderMid = {
+        x: (leftShoulder.x + rightShoulder.x) / 2,
+        y: (leftShoulder.y + rightShoulder.y) / 2,
+      };
+
+      ctx.beginPath();
+      ctx.moveTo(shoulderMid.x * width, shoulderMid.y * height);
+      ctx.lineTo(headCenter.x * width, headCenter.y * height);
+      ctx.stroke();
+    }
   }, []);
 
   // Detection loop

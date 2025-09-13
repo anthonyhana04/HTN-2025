@@ -14,7 +14,7 @@ export default function PostureAnalyzer({ landmarks, onPostureUpdate }: PostureA
   
   // Smoothing filters for different metrics
   const [angleFilter] = useState(() => new SmoothingFilter(3));
-  const [offsetFilter] = useState(() => new SmoothingFilter(3));
+  // Removed forward head position; no offset filter
   const [trunkFilter] = useState(() => new SmoothingFilter(3));
 
   // Analyze posture when landmarks change
@@ -26,8 +26,10 @@ export default function PostureAnalyzer({ landmarks, onPostureUpdate }: PostureA
     const smoothedMetrics = {
       ...currentAnalysis.metrics,
       headNeckAngle: angleFilter.update(currentAnalysis.metrics.headNeckAngle),
-      forwardHeadOffset: offsetFilter.update(currentAnalysis.metrics.forwardHeadOffset),
-      trunkFlexion: trunkFilter.update(currentAnalysis.metrics.trunkFlexion),
+      // forward head position removed
+      trunkFlexion: currentAnalysis.metrics.spineVisible
+        ? trunkFilter.update(currentAnalysis.metrics.trunkFlexion)
+        : 0,
     };
 
     // Re-classify with smoothed metrics
@@ -35,7 +37,11 @@ export default function PostureAnalyzer({ landmarks, onPostureUpdate }: PostureA
     let smoothedSeverity = currentAnalysis.severity;
     let smoothedMessage = currentAnalysis.message;
 
-    if (smoothedMetrics.trunkFlexion <= 15 && smoothedMetrics.forwardHeadOffset <= 0.15) {
+    if (!currentAnalysis.metrics.spineVisible) {
+      smoothedStatus = 'borderline';
+      smoothedSeverity = 'low';
+      smoothedMessage = 'Spine not in view';
+    } else if (smoothedMetrics.trunkFlexion <= 15) {
       smoothedStatus = 'good';
       smoothedSeverity = 'low';
       smoothedMessage = 'Good posture!';
@@ -43,10 +49,6 @@ export default function PostureAnalyzer({ landmarks, onPostureUpdate }: PostureA
       smoothedStatus = 'slouching';
       smoothedSeverity = smoothedMetrics.trunkFlexion > 35 ? 'high' : 'medium';
       smoothedMessage = `Slouching detected (${smoothedMetrics.trunkFlexion.toFixed(1)}° trunk flexion)`;
-    } else if (smoothedMetrics.forwardHeadOffset > 0.30) {
-      smoothedStatus = 'head-forward';
-      smoothedSeverity = smoothedMetrics.forwardHeadOffset > 0.45 ? 'high' : 'medium';
-      smoothedMessage = `Forward head posture detected (${(smoothedMetrics.forwardHeadOffset * 100).toFixed(1)}% offset)`;
     } else {
       smoothedStatus = 'borderline';
       smoothedSeverity = 'low';
@@ -65,7 +67,7 @@ export default function PostureAnalyzer({ landmarks, onPostureUpdate }: PostureA
     if (onPostureUpdate) {
       onPostureUpdate(smoothedAnalysis);
     }
-  }, [landmarks, onPostureUpdate, angleFilter, offsetFilter, trunkFilter]);
+  }, [landmarks, onPostureUpdate, angleFilter, trunkFilter]);
 
   useEffect(() => {
     analyzeCurrentPosture();
@@ -199,49 +201,35 @@ export default function PostureAnalyzer({ landmarks, onPostureUpdate }: PostureA
               <p className="text-sm text-gray-500">Spine alignment with vertical</p>
             </div>
             <div className="relative inline-block">
-              <div className="text-4xl font-bold text-purple-600 mb-2">
-                {smoothedAnalysis.metrics.trunkFlexion.toFixed(1)}°
-              </div>
+              {smoothedAnalysis.metrics.spineVisible ? (
+                <div className="text-4xl font-bold text-purple-600 mb-2">
+                  {smoothedAnalysis.metrics.trunkFlexion.toFixed(1)}°
+                </div>
+              ) : (
+                <div className="text-4xl font-bold text-gray-500 mb-2">
+                  Spine not in view
+                </div>
+              )}
               <div className="w-32 h-2 bg-gray-200 rounded-full mx-auto">
                 <div 
                   className={`h-2 rounded-full transition-all duration-300 ${
+                    !smoothedAnalysis.metrics.spineVisible ? 'bg-gray-400' :
                     smoothedAnalysis.metrics.trunkFlexion <= 15 ? 'bg-green-500' :
                     smoothedAnalysis.metrics.trunkFlexion <= 25 ? 'bg-yellow-500' : 'bg-red-500'
                   }`}
-                  style={{ width: `${Math.min(100, (smoothedAnalysis.metrics.trunkFlexion / 40) * 100)}%` }}
+                  style={{ width: `${!smoothedAnalysis.metrics.spineVisible ? 0 : Math.min(100, (smoothedAnalysis.metrics.trunkFlexion / 40) * 100)}%` }}
                 />
               </div>
               <div className="text-sm text-gray-600 mt-1">
-                {smoothedAnalysis.metrics.trunkFlexion <= 15 ? '✅ Good' : 
+                {!smoothedAnalysis.metrics.spineVisible ? '⚪ Spine not in view' :
+                 smoothedAnalysis.metrics.trunkFlexion <= 15 ? '✅ Good' : 
                  smoothedAnalysis.metrics.trunkFlexion <= 25 ? '⚠️ Moderate' : '❌ Poor'}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Forward Head Offset */}
-        <div className="mt-6 text-center">
-          <div className="mb-2">
-            <h4 className="text-lg font-semibold text-gray-700">Forward Head Position</h4>
-            <p className="text-sm text-gray-500">How far forward your head is from shoulders</p>
-          </div>
-          <div className="text-3xl font-bold text-orange-600 mb-2">
-            {(smoothedAnalysis.metrics.forwardHeadOffset * 100).toFixed(1)}%
-          </div>
-          <div className="w-48 h-2 bg-gray-200 rounded-full mx-auto">
-            <div 
-              className={`h-2 rounded-full transition-all duration-300 ${
-                smoothedAnalysis.metrics.forwardHeadOffset <= 0.15 ? 'bg-green-500' :
-                smoothedAnalysis.metrics.forwardHeadOffset <= 0.30 ? 'bg-yellow-500' : 'bg-red-500'
-              }`}
-              style={{ width: `${Math.min(100, (smoothedAnalysis.metrics.forwardHeadOffset / 0.5) * 100)}%` }}
-            />
-          </div>
-          <div className="text-sm text-gray-600 mt-1">
-            {smoothedAnalysis.metrics.forwardHeadOffset <= 0.15 ? '✅ Good' : 
-             smoothedAnalysis.metrics.forwardHeadOffset <= 0.30 ? '⚠️ Moderate' : '❌ Poor'}
-          </div>
-        </div>
+        {/* Forward Head Position removed */}
       </div>
 
       {/* Detailed Metrics Grid */}
@@ -258,11 +246,21 @@ export default function PostureAnalyzer({ landmarks, onPostureUpdate }: PostureA
 
         <div className="bg-white rounded-lg shadow p-4">
           <h4 className="font-medium text-gray-700 mb-2">Raw Trunk Angle</h4>
-          <div className="text-2xl font-bold text-purple-600">
-            {analysis.metrics.trunkFlexion.toFixed(1)}°
-          </div>
+          {analysis.metrics.spineVisible ? (
+            <div className="text-2xl font-bold text-purple-600">
+              {analysis.metrics.trunkFlexion.toFixed(1)}°
+            </div>
+          ) : (
+            <div className="text-2xl font-bold text-gray-500">
+              Spine not in view
+            </div>
+          )}
           <div className="text-sm text-gray-500">
-            Smoothed: {smoothedAnalysis.metrics.trunkFlexion.toFixed(1)}°
+            {smoothedAnalysis.metrics.spineVisible ? (
+              <>Smoothed: {smoothedAnalysis.metrics.trunkFlexion.toFixed(1)}°</>
+            ) : (
+              <>Smoothed: —</>
+            )}
           </div>
         </div>
 
