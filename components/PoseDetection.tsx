@@ -22,6 +22,8 @@ export default function PoseDetection({ onPostureUpdate, onLandmarksUpdate }: Po
   const [isDetecting, setIsDetecting] = useState(false);
   const [landmarks, setLandmarks] = useState<PoseLandmarks | null>(null);
   const [videoReady, setVideoReady] = useState(false);
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
 
   // Initialize MediaPipe Pose Landmarker
   const initializePoseLandmarker = useCallback(async () => {
@@ -55,15 +57,20 @@ export default function PoseDetection({ onPostureUpdate, onLandmarksUpdate }: Po
   }, []);
 
   // Start webcam
-  const startWebcam = useCallback(async () => {
+  const startWebcam = useCallback(async (deviceId?: string) => {
     try {
       console.log('Requesting camera access...');
+      // Stop existing stream if any
+      if (videoRef.current?.srcObject) {
+        (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+      }
+
+      const videoConstraints: MediaTrackConstraints = deviceId
+        ? { deviceId: { exact: deviceId }, width: { ideal: 640 }, height: { ideal: 480 } }
+        : { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } };
+
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          facingMode: 'user'
-        }
+        video: videoConstraints
       });
 
       console.log('Camera stream obtained:', stream);
@@ -108,12 +115,42 @@ export default function PoseDetection({ onPostureUpdate, onLandmarksUpdate }: Po
         } catch (playError) {
           console.log('Initial play failed, waiting for canplay:', playError);
         }
+        // After starting video, enumerate devices (labels available after permission)
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const cams = devices.filter(d => d.kind === 'videoinput');
+          setVideoDevices(cams);
+          const stored = typeof window !== 'undefined' ? localStorage.getItem('preferredCameraId') : null;
+          // If a specific device was requested, store it; otherwise use stored if present
+          const effectiveId = deviceId || stored || (cams[0]?.deviceId ?? null);
+          if (effectiveId) {
+            setSelectedDeviceId(effectiveId);
+            if (!deviceId && stored && stored !== (cams[0]?.deviceId ?? '')) {
+              // If stored differs from current, try switching to it
+              switchCamera(stored);
+            }
+          }
+        } catch (e) {
+          console.warn('enumerateDevices failed:', e);
+        }
       }
     } catch (err) {
       console.error('Failed to access webcam:', err);
       setError('Camera access denied. Please allow camera access and refresh the page.');
     }
   }, []);
+
+  const switchCamera = useCallback(async (deviceId: string) => {
+    try {
+      await startWebcam(deviceId);
+      setSelectedDeviceId(deviceId);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('preferredCameraId', deviceId);
+      }
+    } catch (e) {
+      console.error('Failed to switch camera:', e);
+    }
+  }, [startWebcam]);
 
   // Draw pose landmarks on canvas
   const drawPoseLandmarks = useCallback((result: PoseLandmarkerResult) => {
@@ -319,6 +356,23 @@ export default function PoseDetection({ onPostureUpdate, onLandmarksUpdate }: Po
 
   // Don't auto-start webcam - let user click the button
 
+  // Update device list on device changes
+  useEffect(() => {
+    const handler = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const cams = devices.filter(d => d.kind === 'videoinput');
+        setVideoDevices(cams);
+      } catch (e) {
+        console.warn('enumerateDevices (devicechange) failed:', e);
+      }
+    };
+    navigator.mediaDevices?.addEventListener?.('devicechange', handler);
+    return () => {
+      navigator.mediaDevices?.removeEventListener?.('devicechange', handler);
+    };
+  }, []);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -386,8 +440,22 @@ export default function PoseDetection({ onPostureUpdate, onLandmarksUpdate }: Po
       </div>
 
       <div className="mt-4 flex gap-4 justify-center">
+        {videoDevices.length > 0 && (
+          <select
+            className="px-3 py-2 border rounded"
+            value={selectedDeviceId || ''}
+            onChange={(e) => switchCamera(e.target.value)}
+            disabled={!videoReady && !videoRef.current?.srcObject}
+          >
+            {videoDevices.map((d, i) => (
+              <option key={d.deviceId || i} value={d.deviceId}>
+                {d.label || `Camera ${i + 1}`}
+              </option>
+            ))}
+          </select>
+        )}
         <button
-          onClick={startWebcam}
+          onClick={() => startWebcam()}
           className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
         >
           Start Camera
