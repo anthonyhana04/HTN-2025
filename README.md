@@ -13,17 +13,15 @@ A Next.js 14 application that uses MediaPipe Tasks to detect and analyze posture
 
 ## Posture Analysis
 
-The app analyzes three key metrics:
+The app analyzes key metrics:
 
 1. **Head-Neck Angle**: Measures the angle between your head and neck relative to vertical
-2. **Forward Head Offset**: Calculates how far forward your head is relative to your shoulders
-3. **Trunk Flexion**: Measures the angle of your torso relative to vertical
+2. **Trunk Flexion**: Measures the angle of your torso relative to vertical
 
 ### Classification
 
-- ✅ **Good**: Trunk ≤15° and forward head ≤15% of shoulder width
+- ✅ **Good**: Trunk ≤15°
 - ⚠️ **Slouching**: Trunk flexion >25°
-- ❌ **Head Forward**: Forward head offset >30% of shoulder width
 - ⚪ **Borderline**: Other combinations
 
 ## Tech Stack

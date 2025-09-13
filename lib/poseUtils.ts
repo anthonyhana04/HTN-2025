@@ -64,22 +64,15 @@ export type MetricValue = {
   confidence?: number;
 };
 
-export type BoolMetric = { 
-  value: boolean; 
-  confidence: number; 
-  pctTime?: number; 
-  visible: boolean;
-};
+// Removed BoolMetric as feet support metric is no longer tracked
 
 export type SittingMetrics = {
   cvaDeg: MetricValue;                    // Craniovertebral Angle
-  forwardHeadNorm: MetricValue;           // Forward-Head Distance (normalized)
   trunkDeg: MetricValue;                  // Thoracic Flexion / Trunk Angle
   pelvicTiltDegDelta: MetricValue;        // Pelvic Tilt (relative to baseline)
+  pelvicTiltDeg: MetricValue;             // Pelvic Tilt absolute angle
   elbowDeg: MetricValue;                  // Elbow Angle
-  wristExtDeg: MetricValue;               // Wrist Extension
   kneeDeg: MetricValue;                   // Knee Angle
-  feetSupported: BoolMetric;              // Foot Support
   neckVarDegPerMin: MetricValue;          // Neck Flexion Variability
   ergoScore: MetricValue;                 // Overall Ergonomic Score
 };
@@ -183,6 +176,7 @@ export function analyzePosture(landmarks: PoseLandmark[]): PostureAnalysis {
   // Calculate shoulder and hip midpoints
   const shoulderMidpoint = getMidpoint(leftShoulder, rightShoulder);
   const hipMidpoint = getMidpoint(leftHip, rightHip);
+  const spineMidpoint = getMidpoint(shoulderMidpoint, hipMidpoint);
   
   // Create vertical reference points (canvas/mediapipe y increases downward)
   const verticalUp = { ...shoulderMidpoint, y: shoulderMidpoint.y - 1 };
@@ -195,10 +189,10 @@ export function analyzePosture(landmarks: PoseLandmark[]): PostureAnalysis {
   const rightHipVisible = isLandmarkVisible(rightHip, 0.3);
   const spineVisible = leftShoulderVisible && rightShoulderVisible && leftHipVisible && rightHipVisible;
 
-  // Calculate trunk flexion (shoulder to hip angle with vertical DOWN)
-  // Using downward vertical so upright posture ≈ 0°
+  // Calculate trunk flexion using spine midpoint for stability
+  // Angle between vertical DOWN at spine center and the line to hip midpoint
   const trunkFlexion = spineVisible
-    ? calculateAngle(verticalDown, shoulderMidpoint, hipMidpoint)
+    ? calculateAngle({ ...spineMidpoint, y: spineMidpoint.y + 1 }, spineMidpoint, hipMidpoint)
     : 0;
   
   // Calculate head-neck angle
@@ -250,9 +244,9 @@ export function analyzePosture(landmarks: PoseLandmark[]): PostureAnalysis {
 
 // Classification helper
 export function classify(value: number, bands: { 
-  green: [number, number]; 
-  yellow: [number, number]; 
-  red: [number, number] 
+  green: readonly [number, number]; 
+  yellow: readonly [number, number]; 
+  red: readonly [number, number] 
 }): "green"|"yellow"|"red" {
   if (value >= bands.green[0] && value <= bands.green[1]) return "green";
   if (value >= bands.yellow[0] && value <= bands.yellow[1]) return "yellow";
@@ -282,11 +276,9 @@ export function classifyPelvicTilt(value: number): "green"|"yellow"|"red" {
 // Threshold definitions for all metrics
 export const METRIC_THRESHOLDS = {
   cvaDeg: { green: [50, 180], yellow: [40, 50], red: [0, 40] },
-  forwardHeadNorm: { green: [0, 0.15], yellow: [0.15, 0.30], red: [0.30, 1.0] },
   trunkDeg: { green: [0, 20], yellow: [20, 30], red: [30, 180] },
   pelvicTiltDegDelta: { green: [-10, 10], yellow: [-20, -10], red: [-180, -20] }, // Note: yellow range needs adjustment
   elbowDeg: { green: [90, 110], yellow: [75, 90], red: [0, 75] }, // Note: needs separate ranges
-  wristExtDeg: { green: [0, 15], yellow: [15, 25], red: [25, 90] },
   kneeDeg: { green: [80, 110], yellow: [70, 80], red: [0, 70] }, // Note: needs separate ranges
   neckVarDegPerMin: { green: [0, 6], yellow: [6, 10], red: [10, 180] },
 } as const;
@@ -426,11 +418,7 @@ export function calculateSittingMetrics(
     confidence
   });
 
-  const createBoolMetric = (value: boolean, visible: boolean, confidence: number = 1.0): BoolMetric => ({
-    value,
-    confidence,
-    visible
-  });
+  // BoolMetric removed (feet support no longer used)
 
   // Calculate shoulder width for normalization
   const shoulderWidth = calculateDistance(leftShoulder, rightShoulder);
@@ -447,12 +435,7 @@ export function calculateSittingMetrics(
     earMidpoint
   ) : 0;
 
-  // 2. Forward-Head Distance (normalized)
-  const forwardHeadVisible = cvaVisible;
-  const forwardHeadDistance = forwardHeadVisible ? 
-    Math.abs(earMidpoint.x - shoulderMidpoint.x) / shoulderWidth : 0;
-
-  // 3. Trunk Angle (already calculated)
+  // 2. Trunk Angle (already calculated)
   const trunkVisible = isLandmarkVisible(leftShoulder, 0.3) && isLandmarkVisible(rightShoulder, 0.3) &&
                        isLandmarkVisible(leftHip, 0.3) && isLandmarkVisible(rightHip, 0.3);
   const trunkAngle = trunkVisible ? calculateAngle(
@@ -464,7 +447,7 @@ export function calculateSittingMetrics(
   // 4. Pelvic Tilt (relative to baseline)
   const pelvicVisible = trunkVisible;
   const currentPelvicTilt = pelvicVisible ? calculateAngle(
-    { x: 0, y: 0 }, // Horizontal reference
+    { x: 0, y: 0, z: 0 }, // Horizontal reference
     leftHip,
     rightHip
   ) : 0;
@@ -475,29 +458,16 @@ export function calculateSittingMetrics(
                        isLandmarkVisible(leftWrist, 0.3);
   const elbowAngle = elbowVisible ? calculateAngle(leftShoulder, leftElbow, leftWrist) : 0;
 
-  // 6. Wrist Extension
-  const wristVisible = isLandmarkVisible(leftElbow, 0.3) && isLandmarkVisible(leftWrist, 0.3);
-  const wristAngle = wristVisible ? calculateAngle(
-    leftElbow,
-    leftWrist,
-    { ...leftWrist, y: leftWrist.y - 1 } // Extension direction
-  ) : 0;
-
-  // 7. Knee Angle
+  // 6. Knee Angle
   const kneeVisible = isLandmarkVisible(leftHip, 0.3) && isLandmarkVisible(leftKnee, 0.3) && 
                       isLandmarkVisible(leftAnkle, 0.3);
   const kneeAngle = kneeVisible ? calculateAngle(leftHip, leftKnee, leftAnkle) : 0;
 
-  // 8. Foot Support (heuristic)
-  const feetVisible = isLandmarkVisible(leftAnkle, 0.3) && isLandmarkVisible(rightAnkle, 0.3);
-  const avgAnkleHeight = feetVisible ? (leftAnkle.y + rightAnkle.y) / 2 : 0;
-  const feetSupported = feetVisible && avgAnkleHeight > 0.7; // Heuristic: feet near bottom of frame
-
-  // 9. Neck Variability (over last 60s)
+  // 7. Neck Variability (over last 60s)
   const neckVarVisible = neckHistory.length > 10;
   const neckVariability = neckVarVisible ? calculateStandardDeviation(neckHistory) * 60 : 0; // Convert to per-minute
 
-  // 10. Ergonomic Score (weighted aggregation)
+  // 8. Ergonomic Score (weighted aggregation)
   const weights = { head: 0.25, trunk: 0.25, pelvis: 0.15, upperLimb: 0.2, lowerBody: 0.15 };
   const scores = {
     head: cvaVisible ? (cvaAngle >= 50 ? 1.0 : cvaAngle >= 40 ? 0.7 : 0.4) : 0,
@@ -515,13 +485,11 @@ export function calculateSittingMetrics(
 
   return {
     cvaDeg: createMetric(cvaAngle, cvaVisible),
-    forwardHeadNorm: createMetric(forwardHeadDistance, forwardHeadVisible),
     trunkDeg: createMetric(trunkAngle, trunkVisible),
     pelvicTiltDegDelta: createMetric(pelvicTiltDelta, pelvicVisible),
+    pelvicTiltDeg: createMetric(currentPelvicTilt, pelvicVisible),
     elbowDeg: createMetric(elbowAngle, elbowVisible),
-    wristExtDeg: createMetric(wristAngle, wristVisible),
     kneeDeg: createMetric(kneeAngle, kneeVisible),
-    feetSupported: createBoolMetric(feetSupported, feetVisible),
     neckVarDegPerMin: createMetric(neckVariability, neckVarVisible),
     ergoScore: createMetric(ergoScore, true, 0.8)
   };
