@@ -52,12 +52,45 @@ export interface PoseLandmarks {
 
 export type PostureStatus = 'good' | 'slouching' | 'borderline';
 
+// Extended types for comprehensive posture analysis
+export type Landmark = { x: number; y: number; z?: number; visibility?: number };
+export type PoseFrame = { t: number; landmarks: Landmark[]; quality: { blur?: number; backlight?: number } };
+
+export type MetricValue = { 
+  value: number; 
+  sigma: number; 
+  level: "green"|"yellow"|"red"|"na"; 
+  visible: boolean;
+  confidence?: number;
+};
+
+export type BoolMetric = { 
+  value: boolean; 
+  confidence: number; 
+  pctTime?: number; 
+  visible: boolean;
+};
+
+export type SittingMetrics = {
+  cvaDeg: MetricValue;                    // Craniovertebral Angle
+  forwardHeadNorm: MetricValue;           // Forward-Head Distance (normalized)
+  trunkDeg: MetricValue;                  // Thoracic Flexion / Trunk Angle
+  pelvicTiltDegDelta: MetricValue;        // Pelvic Tilt (relative to baseline)
+  elbowDeg: MetricValue;                  // Elbow Angle
+  wristExtDeg: MetricValue;               // Wrist Extension
+  kneeDeg: MetricValue;                   // Knee Angle
+  feetSupported: BoolMetric;              // Foot Support
+  neckVarDegPerMin: MetricValue;          // Neck Flexion Variability
+  ergoScore: MetricValue;                 // Overall Ergonomic Score
+};
+
 export interface PostureMetrics {
   headNeckAngle: number; // degrees
   trunkFlexion: number; // degrees
   shoulderWidth: number; // normalized
   confidence: number; // average visibility of key landmarks
   spineVisible: boolean; // shoulders and hips confidently visible
+  sittingMetrics?: SittingMetrics; // Extended metrics
 }
 
 export interface PostureAnalysis {
@@ -215,6 +248,131 @@ export function analyzePosture(landmarks: PoseLandmark[]): PostureAnalysis {
   };
 }
 
+// Classification helper
+export function classify(value: number, bands: { 
+  green: [number, number]; 
+  yellow: [number, number]; 
+  red: [number, number] 
+}): "green"|"yellow"|"red" {
+  if (value >= bands.green[0] && value <= bands.green[1]) return "green";
+  if (value >= bands.yellow[0] && value <= bands.yellow[1]) return "yellow";
+  return "red";
+}
+
+// Specialized classification for complex ranges
+export function classifyElbow(value: number): "green"|"yellow"|"red" {
+  if (value >= 90 && value <= 110) return "green";
+  if ((value >= 75 && value < 90) || (value > 110 && value <= 125)) return "yellow";
+  return "red";
+}
+
+export function classifyKnee(value: number): "green"|"yellow"|"red" {
+  if (value >= 80 && value <= 110) return "green";
+  if ((value >= 70 && value < 80) || (value > 110 && value <= 120)) return "yellow";
+  return "red";
+}
+
+export function classifyPelvicTilt(value: number): "green"|"yellow"|"red" {
+  const absValue = Math.abs(value);
+  if (absValue <= 10) return "green";
+  if (absValue <= 20) return "yellow";
+  return "red";
+}
+
+// Threshold definitions for all metrics
+export const METRIC_THRESHOLDS = {
+  cvaDeg: { green: [50, 180], yellow: [40, 50], red: [0, 40] },
+  forwardHeadNorm: { green: [0, 0.15], yellow: [0.15, 0.30], red: [0.30, 1.0] },
+  trunkDeg: { green: [0, 20], yellow: [20, 30], red: [30, 180] },
+  pelvicTiltDegDelta: { green: [-10, 10], yellow: [-20, -10], red: [-180, -20] }, // Note: yellow range needs adjustment
+  elbowDeg: { green: [90, 110], yellow: [75, 90], red: [0, 75] }, // Note: needs separate ranges
+  wristExtDeg: { green: [0, 15], yellow: [15, 25], red: [25, 90] },
+  kneeDeg: { green: [80, 110], yellow: [70, 80], red: [0, 70] }, // Note: needs separate ranges
+  neckVarDegPerMin: { green: [0, 6], yellow: [6, 10], red: [10, 180] },
+} as const;
+
+// One-Euro filter for smoothing
+export class OneEuroFilter {
+  private minCutoff: number;
+  private beta: number;
+  private dcutoff: number;
+  private x: LowPassFilter;
+  private dx: LowPassFilter;
+  private lastTime: number;
+
+  constructor(freq: number = 30, minCutoff: number = 1.0, beta: number = 0.007, dcutoff: number = 1.0) {
+    this.minCutoff = minCutoff;
+    this.beta = beta;
+    this.dcutoff = dcutoff;
+    this.x = new LowPassFilter(this.alpha(this.minCutoff, freq));
+    this.dx = new LowPassFilter(this.alpha(this.dcutoff, freq));
+    this.lastTime = 0;
+  }
+
+  private alpha(cutoff: number, freq: number): number {
+    const te = 1.0 / freq;
+    const tau = 1.0 / (2 * Math.PI * cutoff);
+    return 1.0 / (1.0 + tau / te);
+  }
+
+  update(x: number, timestamp?: number): number {
+    const now = timestamp || performance.now();
+    const dt = this.lastTime > 0 ? (now - this.lastTime) / 1000 : 1.0 / 30.0;
+    this.lastTime = now;
+
+    if (dt <= 0) return this.x.lastValue();
+
+    const dx = this.x.hasLastValue() ? (x - this.x.lastValue()) / dt : 0;
+    const edx = this.dx.update(dx, dt);
+    const cutoff = this.minCutoff + this.beta * Math.abs(edx);
+    this.x.setAlpha(this.alpha(cutoff, 1.0 / dt));
+    return this.x.update(x, dt);
+  }
+
+  reset(): void {
+    this.x.reset();
+    this.dx.reset();
+    this.lastTime = 0;
+  }
+}
+
+class LowPassFilter {
+  private y: number = 0;
+  private alpha: number;
+  private hasLast: boolean = false;
+
+  constructor(alpha: number) {
+    this.alpha = alpha;
+  }
+
+  update(x: number, dt: number): number {
+    if (!this.hasLast) {
+      this.y = x;
+      this.hasLast = true;
+    } else {
+      this.y = this.alpha * x + (1 - this.alpha) * this.y;
+    }
+    return this.y;
+  }
+
+  setAlpha(alpha: number): void {
+    this.alpha = alpha;
+  }
+
+  lastValue(): number {
+    return this.y;
+  }
+
+  hasLastValue(): boolean {
+    return this.hasLast;
+  }
+
+  reset(): void {
+    this.y = 0;
+    this.hasLast = false;
+  }
+}
+
 // Smoothing utilities (simple moving average)
 export class SmoothingFilter {
   private buffer: number[] = [];
@@ -235,4 +393,144 @@ export class SmoothingFilter {
   reset(): void {
     this.buffer = [];
   }
+}
+
+// Comprehensive seated posture analysis
+export function calculateSittingMetrics(
+  landmarks: PoseLandmark[], 
+  baseline?: { pelvicTilt: number; shoulderWidth: number },
+  neckHistory: number[] = []
+): SittingMetrics {
+  const leftShoulder = landmarks[POSE_LANDMARKS.LEFT_SHOULDER];
+  const rightShoulder = landmarks[POSE_LANDMARKS.RIGHT_SHOULDER];
+  const leftHip = landmarks[POSE_LANDMARKS.LEFT_HIP];
+  const rightHip = landmarks[POSE_LANDMARKS.RIGHT_HIP];
+  const leftEar = landmarks[POSE_LANDMARKS.LEFT_EAR];
+  const rightEar = landmarks[POSE_LANDMARKS.RIGHT_EAR];
+  const nose = landmarks[POSE_LANDMARKS.NOSE];
+  const leftElbow = landmarks[POSE_LANDMARKS.LEFT_ELBOW];
+  const rightElbow = landmarks[POSE_LANDMARKS.RIGHT_ELBOW];
+  const leftWrist = landmarks[POSE_LANDMARKS.LEFT_WRIST];
+  const rightWrist = landmarks[POSE_LANDMARKS.RIGHT_WRIST];
+  const leftKnee = landmarks[POSE_LANDMARKS.LEFT_KNEE];
+  const rightKnee = landmarks[POSE_LANDMARKS.RIGHT_KNEE];
+  const leftAnkle = landmarks[POSE_LANDMARKS.LEFT_ANKLE];
+  const rightAnkle = landmarks[POSE_LANDMARKS.RIGHT_ANKLE];
+
+  // Helper function to create metric value
+  const createMetric = (value: number, visible: boolean, confidence: number = 1.0): MetricValue => ({
+    value,
+    sigma: visible ? 0.1 : 1.0, // Low uncertainty when visible
+    level: visible ? classify(value, METRIC_THRESHOLDS.cvaDeg) : "na", // Will be overridden
+    visible,
+    confidence
+  });
+
+  const createBoolMetric = (value: boolean, visible: boolean, confidence: number = 1.0): BoolMetric => ({
+    value,
+    confidence,
+    visible
+  });
+
+  // Calculate shoulder width for normalization
+  const shoulderWidth = calculateDistance(leftShoulder, rightShoulder);
+  const shoulderMidpoint = getMidpoint(leftShoulder, rightShoulder);
+  const hipMidpoint = getMidpoint(leftHip, rightHip);
+
+  // 1. Craniovertebral Angle (CVA)
+  const cvaVisible = isLandmarkVisible(leftEar, 0.3) && isLandmarkVisible(rightEar, 0.3) && 
+                     isLandmarkVisible(leftShoulder, 0.3) && isLandmarkVisible(rightShoulder, 0.3);
+  const earMidpoint = cvaVisible ? getMidpoint(leftEar, rightEar) : nose;
+  const cvaAngle = cvaVisible ? calculateAngle(
+    { ...shoulderMidpoint, y: shoulderMidpoint.y - 1 }, // Vertical up
+    shoulderMidpoint,
+    earMidpoint
+  ) : 0;
+
+  // 2. Forward-Head Distance (normalized)
+  const forwardHeadVisible = cvaVisible;
+  const forwardHeadDistance = forwardHeadVisible ? 
+    Math.abs(earMidpoint.x - shoulderMidpoint.x) / shoulderWidth : 0;
+
+  // 3. Trunk Angle (already calculated)
+  const trunkVisible = isLandmarkVisible(leftShoulder, 0.3) && isLandmarkVisible(rightShoulder, 0.3) &&
+                       isLandmarkVisible(leftHip, 0.3) && isLandmarkVisible(rightHip, 0.3);
+  const trunkAngle = trunkVisible ? calculateAngle(
+    { ...shoulderMidpoint, y: shoulderMidpoint.y + 1 }, // Vertical down
+    shoulderMidpoint,
+    hipMidpoint
+  ) : 0;
+
+  // 4. Pelvic Tilt (relative to baseline)
+  const pelvicVisible = trunkVisible;
+  const currentPelvicTilt = pelvicVisible ? calculateAngle(
+    { x: 0, y: 0 }, // Horizontal reference
+    leftHip,
+    rightHip
+  ) : 0;
+  const pelvicTiltDelta = baseline ? currentPelvicTilt - baseline.pelvicTilt : 0;
+
+  // 5. Elbow Angle
+  const elbowVisible = isLandmarkVisible(leftShoulder, 0.3) && isLandmarkVisible(leftElbow, 0.3) && 
+                       isLandmarkVisible(leftWrist, 0.3);
+  const elbowAngle = elbowVisible ? calculateAngle(leftShoulder, leftElbow, leftWrist) : 0;
+
+  // 6. Wrist Extension
+  const wristVisible = isLandmarkVisible(leftElbow, 0.3) && isLandmarkVisible(leftWrist, 0.3);
+  const wristAngle = wristVisible ? calculateAngle(
+    leftElbow,
+    leftWrist,
+    { ...leftWrist, y: leftWrist.y - 1 } // Extension direction
+  ) : 0;
+
+  // 7. Knee Angle
+  const kneeVisible = isLandmarkVisible(leftHip, 0.3) && isLandmarkVisible(leftKnee, 0.3) && 
+                      isLandmarkVisible(leftAnkle, 0.3);
+  const kneeAngle = kneeVisible ? calculateAngle(leftHip, leftKnee, leftAnkle) : 0;
+
+  // 8. Foot Support (heuristic)
+  const feetVisible = isLandmarkVisible(leftAnkle, 0.3) && isLandmarkVisible(rightAnkle, 0.3);
+  const avgAnkleHeight = feetVisible ? (leftAnkle.y + rightAnkle.y) / 2 : 0;
+  const feetSupported = feetVisible && avgAnkleHeight > 0.7; // Heuristic: feet near bottom of frame
+
+  // 9. Neck Variability (over last 60s)
+  const neckVarVisible = neckHistory.length > 10;
+  const neckVariability = neckVarVisible ? calculateStandardDeviation(neckHistory) * 60 : 0; // Convert to per-minute
+
+  // 10. Ergonomic Score (weighted aggregation)
+  const weights = { head: 0.25, trunk: 0.25, pelvis: 0.15, upperLimb: 0.2, lowerBody: 0.15 };
+  const scores = {
+    head: cvaVisible ? (cvaAngle >= 50 ? 1.0 : cvaAngle >= 40 ? 0.7 : 0.4) : 0,
+    trunk: trunkVisible ? (trunkAngle <= 20 ? 1.0 : trunkAngle <= 30 ? 0.7 : 0.4) : 0,
+    pelvis: pelvicVisible ? (Math.abs(pelvicTiltDelta) <= 10 ? 1.0 : Math.abs(pelvicTiltDelta) <= 20 ? 0.7 : 0.4) : 0,
+    upperLimb: elbowVisible ? (elbowAngle >= 90 && elbowAngle <= 110 ? 1.0 : 
+                               (elbowAngle >= 75 && elbowAngle <= 125) ? 0.7 : 0.4) : 0,
+    lowerBody: kneeVisible ? (kneeAngle >= 80 && kneeAngle <= 110 ? 1.0 : 
+                              (kneeAngle >= 70 && kneeAngle <= 120) ? 0.7 : 0.4) : 0
+  };
+  
+  const ergoScore = (scores.head * weights.head + scores.trunk * weights.trunk + 
+                     scores.pelvis * weights.pelvis + scores.upperLimb * weights.upperLimb + 
+                     scores.lowerBody * weights.lowerBody) * 100;
+
+  return {
+    cvaDeg: createMetric(cvaAngle, cvaVisible),
+    forwardHeadNorm: createMetric(forwardHeadDistance, forwardHeadVisible),
+    trunkDeg: createMetric(trunkAngle, trunkVisible),
+    pelvicTiltDegDelta: createMetric(pelvicTiltDelta, pelvicVisible),
+    elbowDeg: createMetric(elbowAngle, elbowVisible),
+    wristExtDeg: createMetric(wristAngle, wristVisible),
+    kneeDeg: createMetric(kneeAngle, kneeVisible),
+    feetSupported: createBoolMetric(feetSupported, feetVisible),
+    neckVarDegPerMin: createMetric(neckVariability, neckVarVisible),
+    ergoScore: createMetric(ergoScore, true, 0.8)
+  };
+}
+
+// Helper function to calculate standard deviation
+function calculateStandardDeviation(values: number[]): number {
+  if (values.length < 2) return 0;
+  const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
+  const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / (values.length - 1);
+  return Math.sqrt(variance);
 }

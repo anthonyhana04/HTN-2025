@@ -2,14 +2,20 @@
 
 import { useState } from 'react';
 import PoseDetection from '@/components/PoseDetection';
+import PostureAnalyzer from '@/components/PostureAnalyzer';
 import { PostureAnalysis } from '@/lib/poseUtils';
 
 export default function Home() {
   const [currentAnalysis, setCurrentAnalysis] = useState<PostureAnalysis | null>(null);
+  const [landmarks, setLandmarks] = useState<any>(null);
   const [showInstructions, setShowInstructions] = useState(true);
 
   const handlePostureUpdate = (analysis: PostureAnalysis) => {
     setCurrentAnalysis(analysis);
+  };
+
+  const handleLandmarksUpdate = (landmarkData: any) => {
+    setLandmarks(landmarkData);
   };
 
   return (
@@ -58,9 +64,31 @@ export default function Home() {
           </div>
         )}
 
-        {/* Main Content */}
-        <div className="max-w-6xl mx-auto">
-          <PoseDetection onPostureUpdate={handlePostureUpdate} />
+        {/* Main Content - Split Layout */}
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left Side - Camera */}
+            <div className="space-y-4">
+              <h2 className="text-2xl font-semibold text-gray-800 text-center">Live Camera Feed</h2>
+              <PoseDetection 
+                onPostureUpdate={handlePostureUpdate}
+                onLandmarksUpdate={handleLandmarksUpdate}
+              />
+            </div>
+            
+            {/* Right Side - Metrics */}
+            <div className="space-y-4">
+              <h2 className="text-2xl font-semibold text-gray-800 text-center">Posture Analysis</h2>
+              <div className="max-h-screen overflow-y-auto pr-2">
+                {landmarks && (
+                  <PostureAnalyzer
+                    landmarks={landmarks}
+                    onPostureUpdate={handlePostureUpdate}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Footer Info */}

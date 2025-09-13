@@ -7,9 +7,10 @@ import PostureAnalyzer from './PostureAnalyzer';
 
 interface PoseDetectionProps {
   onPostureUpdate?: (analysis: PostureAnalysis) => void;
+  onLandmarksUpdate?: (landmarks: PoseLandmarks) => void;
 }
 
-export default function PoseDetection({ onPostureUpdate }: PoseDetectionProps) {
+export default function PoseDetection({ onPostureUpdate, onLandmarksUpdate }: PoseDetectionProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const poseLandmarkerRef = useRef<PoseLandmarker | null>(null);
@@ -273,6 +274,9 @@ export default function PoseDetection({ onPostureUpdate }: PoseDetectionProps) {
         };
         
         setLandmarks(poseData);
+        if (onLandmarksUpdate) {
+          onLandmarksUpdate(poseData);
+        }
         drawPoseLandmarks(result);
       } else {
         console.log('No landmarks detected');
@@ -372,8 +376,7 @@ export default function PoseDetection({ onPostureUpdate }: PoseDetectionProps) {
         />
       </div>
       
-      {/* Debug info */}
-      <div className="mt-4 p-4 bg-gray-100 rounded text-sm">
+      <div className="mt-4 p-4 bg-gray-100 rounded text-sm hidden">
         <p>Video Status: {videoRef.current ? 'Element exists' : 'No element'}</p>
         <p>Video Dimensions: {videoRef.current ? `${videoRef.current.videoWidth}x${videoRef.current.videoHeight}` : 'Unknown'}</p>
         <p>Video Ready State: {videoRef.current ? videoRef.current.readyState : 'Unknown'}</p>
@@ -404,12 +407,7 @@ export default function PoseDetection({ onPostureUpdate }: PoseDetectionProps) {
         </button>
       </div>
 
-      {landmarks && (
-        <PostureAnalyzer
-          landmarks={landmarks}
-          onPostureUpdate={onPostureUpdate}
-        />
-      )}
+      {/* PostureAnalyzer is now handled in the main page layout */}
     </div>
   );
 }
