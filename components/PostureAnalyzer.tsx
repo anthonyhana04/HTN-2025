@@ -1,0 +1,312 @@
+'use client';
+
+import { useEffect, useState, useCallback } from 'react';
+import { PoseLandmarks, PostureAnalysis, analyzePosture, SmoothingFilter } from '@/lib/poseUtils';
+
+interface PostureAnalyzerProps {
+  landmarks: PoseLandmarks;
+  onPostureUpdate?: (analysis: PostureAnalysis) => void;
+}
+
+export default function PostureAnalyzer({ landmarks, onPostureUpdate }: PostureAnalyzerProps) {
+  const [analysis, setAnalysis] = useState<PostureAnalysis | null>(null);
+  const [smoothedAnalysis, setSmoothedAnalysis] = useState<PostureAnalysis | null>(null);
+  
+  // Smoothing filters for different metrics
+  const [angleFilter] = useState(() => new SmoothingFilter(3));
+  const [offsetFilter] = useState(() => new SmoothingFilter(3));
+  const [trunkFilter] = useState(() => new SmoothingFilter(3));
+
+  // Analyze posture when landmarks change
+  const analyzeCurrentPosture = useCallback(() => {
+    const currentAnalysis = analyzePosture(landmarks.landmarks);
+    setAnalysis(currentAnalysis);
+
+    // Apply smoothing to key metrics
+    const smoothedMetrics = {
+      ...currentAnalysis.metrics,
+      headNeckAngle: angleFilter.update(currentAnalysis.metrics.headNeckAngle),
+      forwardHeadOffset: offsetFilter.update(currentAnalysis.metrics.forwardHeadOffset),
+      trunkFlexion: trunkFilter.update(currentAnalysis.metrics.trunkFlexion),
+    };
+
+    // Re-classify with smoothed metrics
+    let smoothedStatus = currentAnalysis.status;
+    let smoothedSeverity = currentAnalysis.severity;
+    let smoothedMessage = currentAnalysis.message;
+
+    if (smoothedMetrics.trunkFlexion <= 15 && smoothedMetrics.forwardHeadOffset <= 0.15) {
+      smoothedStatus = 'good';
+      smoothedSeverity = 'low';
+      smoothedMessage = 'Good posture!';
+    } else if (smoothedMetrics.trunkFlexion > 25) {
+      smoothedStatus = 'slouching';
+      smoothedSeverity = smoothedMetrics.trunkFlexion > 35 ? 'high' : 'medium';
+      smoothedMessage = `Slouching detected (${smoothedMetrics.trunkFlexion.toFixed(1)}° trunk flexion)`;
+    } else if (smoothedMetrics.forwardHeadOffset > 0.30) {
+      smoothedStatus = 'head-forward';
+      smoothedSeverity = smoothedMetrics.forwardHeadOffset > 0.45 ? 'high' : 'medium';
+      smoothedMessage = `Forward head posture detected (${(smoothedMetrics.forwardHeadOffset * 100).toFixed(1)}% offset)`;
+    } else {
+      smoothedStatus = 'borderline';
+      smoothedSeverity = 'low';
+      smoothedMessage = 'Posture needs improvement';
+    }
+
+    const smoothedAnalysis: PostureAnalysis = {
+      status: smoothedStatus,
+      metrics: smoothedMetrics,
+      severity: smoothedSeverity,
+      message: smoothedMessage,
+    };
+
+    setSmoothedAnalysis(smoothedAnalysis);
+    
+    if (onPostureUpdate) {
+      onPostureUpdate(smoothedAnalysis);
+    }
+  }, [landmarks, onPostureUpdate, angleFilter, offsetFilter, trunkFilter]);
+
+  useEffect(() => {
+    analyzeCurrentPosture();
+  }, [analyzeCurrentPosture]);
+
+  if (!analysis || !smoothedAnalysis) {
+    return null;
+  }
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'good':
+        return '✅';
+      case 'slouching':
+        return '⚠️';
+      case 'head-forward':
+        return '❌';
+      default:
+        return '⚪';
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'good':
+        return 'status-good';
+      case 'slouching':
+        return 'status-slouching';
+      case 'head-forward':
+        return 'status-head-forward';
+      default:
+        return 'status-borderline';
+    }
+  };
+
+  const getConfidenceColor = (confidence: number) => {
+    if (confidence >= 0.8) return 'confidence-high';
+    if (confidence >= 0.6) return 'confidence-medium';
+    return 'confidence-low';
+  };
+
+  const getConfidenceLabel = (confidence: number) => {
+    if (confidence >= 0.8) return 'High';
+    if (confidence >= 0.6) return 'Medium';
+    return 'Low';
+  };
+
+  return (
+    <div className="mt-6 space-y-4">
+      {/* Real-time Angle Display */}
+      <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 border-2 border-blue-200">
+        <h3 className="text-lg font-bold text-gray-800 mb-3 text-center">Live Posture Angles</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-blue-600">
+              {smoothedAnalysis.metrics.headNeckAngle.toFixed(1)}°
+            </div>
+            <div className="text-sm text-gray-600">Neck Angle</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-purple-600">
+              {smoothedAnalysis.metrics.trunkFlexion.toFixed(1)}°
+            </div>
+            <div className="text-sm text-gray-600">Trunk Angle</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Status Display */}
+      <div className="bg-white rounded-lg shadow-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-semibold text-gray-800">Posture Status</h3>
+          <div className={`status-badge ${getStatusColor(smoothedAnalysis.status)}`}>
+            <span className="mr-2">{getStatusIcon(smoothedAnalysis.status)}</span>
+            {smoothedAnalysis.status.charAt(0).toUpperCase() + smoothedAnalysis.status.slice(1).replace('-', ' ')}
+          </div>
+        </div>
+
+        <p className="text-gray-600 mb-4">{smoothedAnalysis.message}</p>
+
+        {/* Confidence Bar */}
+        <div className="mb-4">
+          <div className="flex justify-between text-sm text-gray-600 mb-2">
+            <span>Tracking Quality</span>
+            <span>{getConfidenceLabel(smoothedAnalysis.metrics.confidence)}</span>
+          </div>
+          <div className="confidence-bar">
+            <div
+              className={`confidence-fill ${getConfidenceColor(smoothedAnalysis.metrics.confidence)}`}
+              style={{ width: `${smoothedAnalysis.metrics.confidence * 100}%` }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Main Posture Angles Display */}
+      <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+        <h3 className="text-xl font-bold text-gray-800 mb-4 text-center">Posture Analysis</h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Neck Angle */}
+          <div className="text-center">
+            <div className="mb-2">
+              <h4 className="text-lg font-semibold text-gray-700">Neck Angle</h4>
+              <p className="text-sm text-gray-500">Head alignment with vertical</p>
+            </div>
+            <div className="relative inline-block">
+              <div className="text-4xl font-bold text-blue-600 mb-2">
+                {smoothedAnalysis.metrics.headNeckAngle.toFixed(1)}°
+              </div>
+              <div className="w-32 h-2 bg-gray-200 rounded-full mx-auto">
+                <div 
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    smoothedAnalysis.metrics.headNeckAngle <= 15 ? 'bg-green-500' :
+                    smoothedAnalysis.metrics.headNeckAngle <= 25 ? 'bg-yellow-500' : 'bg-red-500'
+                  }`}
+                  style={{ width: `${Math.min(100, (smoothedAnalysis.metrics.headNeckAngle / 30) * 100)}%` }}
+                />
+              </div>
+              <div className="text-sm text-gray-600 mt-1">
+                {smoothedAnalysis.metrics.headNeckAngle <= 15 ? '✅ Good' : 
+                 smoothedAnalysis.metrics.headNeckAngle <= 25 ? '⚠️ Moderate' : '❌ Poor'}
+              </div>
+            </div>
+          </div>
+
+          {/* Trunk Angle */}
+          <div className="text-center">
+            <div className="mb-2">
+              <h4 className="text-lg font-semibold text-gray-700">Trunk Angle</h4>
+              <p className="text-sm text-gray-500">Spine alignment with vertical</p>
+            </div>
+            <div className="relative inline-block">
+              <div className="text-4xl font-bold text-purple-600 mb-2">
+                {smoothedAnalysis.metrics.trunkFlexion.toFixed(1)}°
+              </div>
+              <div className="w-32 h-2 bg-gray-200 rounded-full mx-auto">
+                <div 
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    smoothedAnalysis.metrics.trunkFlexion <= 15 ? 'bg-green-500' :
+                    smoothedAnalysis.metrics.trunkFlexion <= 25 ? 'bg-yellow-500' : 'bg-red-500'
+                  }`}
+                  style={{ width: `${Math.min(100, (smoothedAnalysis.metrics.trunkFlexion / 40) * 100)}%` }}
+                />
+              </div>
+              <div className="text-sm text-gray-600 mt-1">
+                {smoothedAnalysis.metrics.trunkFlexion <= 15 ? '✅ Good' : 
+                 smoothedAnalysis.metrics.trunkFlexion <= 25 ? '⚠️ Moderate' : '❌ Poor'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Forward Head Offset */}
+        <div className="mt-6 text-center">
+          <div className="mb-2">
+            <h4 className="text-lg font-semibold text-gray-700">Forward Head Position</h4>
+            <p className="text-sm text-gray-500">How far forward your head is from shoulders</p>
+          </div>
+          <div className="text-3xl font-bold text-orange-600 mb-2">
+            {(smoothedAnalysis.metrics.forwardHeadOffset * 100).toFixed(1)}%
+          </div>
+          <div className="w-48 h-2 bg-gray-200 rounded-full mx-auto">
+            <div 
+              className={`h-2 rounded-full transition-all duration-300 ${
+                smoothedAnalysis.metrics.forwardHeadOffset <= 0.15 ? 'bg-green-500' :
+                smoothedAnalysis.metrics.forwardHeadOffset <= 0.30 ? 'bg-yellow-500' : 'bg-red-500'
+              }`}
+              style={{ width: `${Math.min(100, (smoothedAnalysis.metrics.forwardHeadOffset / 0.5) * 100)}%` }}
+            />
+          </div>
+          <div className="text-sm text-gray-600 mt-1">
+            {smoothedAnalysis.metrics.forwardHeadOffset <= 0.15 ? '✅ Good' : 
+             smoothedAnalysis.metrics.forwardHeadOffset <= 0.30 ? '⚠️ Moderate' : '❌ Poor'}
+          </div>
+        </div>
+      </div>
+
+      {/* Detailed Metrics Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white rounded-lg shadow p-4">
+          <h4 className="font-medium text-gray-700 mb-2">Raw Neck Angle</h4>
+          <div className="text-2xl font-bold text-blue-600">
+            {analysis.metrics.headNeckAngle.toFixed(1)}°
+          </div>
+          <div className="text-sm text-gray-500">
+            Smoothed: {smoothedAnalysis.metrics.headNeckAngle.toFixed(1)}°
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-4">
+          <h4 className="font-medium text-gray-700 mb-2">Raw Trunk Angle</h4>
+          <div className="text-2xl font-bold text-purple-600">
+            {analysis.metrics.trunkFlexion.toFixed(1)}°
+          </div>
+          <div className="text-sm text-gray-500">
+            Smoothed: {smoothedAnalysis.metrics.trunkFlexion.toFixed(1)}°
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-4">
+          <h4 className="font-medium text-gray-700 mb-2">Confidence</h4>
+          <div className="text-2xl font-bold text-green-600">
+            {(smoothedAnalysis.metrics.confidence * 100).toFixed(0)}%
+          </div>
+          <div className="text-sm text-gray-500">
+            Tracking quality
+          </div>
+        </div>
+      </div>
+
+      {/* Tips and Recommendations */}
+      <div className="bg-blue-50 rounded-lg p-4">
+        <h4 className="font-medium text-blue-800 mb-2">💡 Posture Tips</h4>
+        <ul className="text-sm text-blue-700 space-y-1">
+          {smoothedAnalysis.status === 'good' && (
+            <li>• Keep up the great posture! Remember to take breaks every 30 minutes.</li>
+          )}
+          {smoothedAnalysis.status === 'slouching' && (
+            <>
+              <li>• Sit up straight with your shoulders back and down</li>
+              <li>• Keep your feet flat on the floor</li>
+              <li>• Adjust your chair height so your knees are at 90 degrees</li>
+            </>
+          )}
+          {smoothedAnalysis.status === 'head-forward' && (
+            <>
+              <li>• Bring your head back over your shoulders</li>
+              <li>• Adjust your monitor height to eye level</li>
+              <li>• Strengthen your neck and upper back muscles</li>
+            </>
+          )}
+          {smoothedAnalysis.status === 'borderline' && (
+            <>
+              <li>• Make small adjustments to improve your posture</li>
+              <li>• Focus on keeping your head aligned with your spine</li>
+              <li>• Take regular breaks to stretch and move around</li>
+            </>
+          )}
+        </ul>
+      </div>
+    </div>
+  );
+}
