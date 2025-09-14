@@ -4,7 +4,7 @@
 
 PostureGuard AI is an intelligent posture detection application that helps you maintain healthy sitting habits by providing real-time feedback on your posture using advanced computer vision and machine learning techniques.
 
-## 🌟 Features
+## 🌟 Features:
 
 - **Real-Time Pose Detection**: Live posture analysis using MediaPipe Tasks Vision
 - **Comprehensive Metrics**: Track neck angle, trunk flexion, elbow position, knee angle, and more
