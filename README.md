@@ -247,4 +247,4 @@ For questions, issues, or feature requests:
 
 ---
 
-Built with ❤️ for HTN 2025 • [Live Demo](https://your-domain.com) • [GitHub](https://github.com/anthonyhana04/PostureGuard-AI)
+Built with ❤️ for HTN 2025 • [Live Demo](https://posture-guard-ai.vercel.app/) • [GitHub](https://github.com/anthonyhana04/PostureGuard-AI)
