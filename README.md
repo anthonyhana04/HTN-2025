@@ -1,149 +1,250 @@
-# Real-Time Posture Detection
+# PostureGuard AI
 
-A Next.js 14 application that uses MediaPipe Tasks to detect and analyze posture in real-time from your webcam. Get instant feedback on your sitting posture with AI-powered pose detection.
+> Real-time posture monitoring and analysis using AI-powered pose detection
 
-## Features
+PostureGuard AI is an intelligent posture detection application that helps you maintain healthy sitting habits by providing real-time feedback on your posture using advanced computer vision and machine learning techniques.
 
-- 🎥 **Real-time webcam pose detection** using MediaPipe Tasks
-- 📊 **Live posture analysis** with angle calculations and classification
-- 🎨 **Beautiful UI** with real-time skeleton overlay
-- ⚡ **Performance optimized** with optional Web Worker support
-- 📱 **Responsive design** that works on desktop and mobile
-- 🔒 **Privacy-first** - all processing happens in your browser
+## 🌟 Features
 
-## Posture Analysis
+- **Real-Time Pose Detection**: Live posture analysis using MediaPipe Tasks Vision
+- **Comprehensive Metrics**: Track neck angle, trunk flexion, elbow position, knee angle, and more
+- **Smart Smoothing**: Advanced filtering algorithms reduce noise for stable readings
+- **Visual Feedback**: Live skeleton overlay and color-coded status indicators
+- **Privacy-First**: All processing happens locally in your browser - no data leaves your device
+- **Multi-Camera Support**: Choose from available cameras with automatic device detection
+- **Responsive Design**: Works on desktop and mobile devices
+- **Dark/Light Theme**: Toggle between themes for comfortable usage
 
-The app analyzes key metrics:
+## 🏗️ Project Structure
 
-1. **Head-Neck Angle**: Measures the angle between your head and neck relative to vertical
-2. **Trunk Flexion**: Measures the angle of your torso relative to vertical
+```
+PostureGuard-AI/
+├── app/                      # Next.js 14 App Router
+│   ├── layout.tsx           # Root layout with theme provider
+│   └── page.tsx             # Main application page
+├── components/              # React components
+│   ├── ui/                  # shadcn/ui components
+│   │   ├── badge.tsx
+│   │   ├── button.tsx
+│   │   ├── card.tsx
+│   │   ├── dialog.tsx
+│   │   ├── select.tsx
+│   │   └── separator.tsx
+│   ├── PoseDetection.tsx    # Core pose detection component
+│   ├── PostureAnalyzer.tsx  # Posture analysis and metrics display
+│   ├── mode-toggle.tsx      # Dark/light theme toggle
+│   └── theme-provider.tsx   # Theme context provider
+├── lib/                     # Utility libraries
+│   ├── poseUtils.ts         # Pose analysis algorithms and utilities
+│   └── utils.ts             # General utilities (cn function)
+├── styles/                  # Global styles
+│   └── globals.css          # Tailwind CSS and custom styles
+├── workers/                 # Web Workers (if needed)
+│   └── poseWorker.ts        # Pose processing worker
+├── public/                  # Static assets
+│   └── favicon.ico
+└── config files             # Configuration files
+    ├── next.config.js       # Next.js configuration
+    ├── tailwind.config.js   # Tailwind CSS configuration
+    ├── tsconfig.json        # TypeScript configuration
+    ├── postcss.config.js    # PostCSS configuration
+    └── components.json      # shadcn/ui configuration
+```
 
-### Classification
-
-- ✅ **Good**: Trunk ≤15°
-- ⚠️ **Slouching**: Trunk flexion >25°
-- ⚪ **Borderline**: Other combinations
-
-## Tech Stack
-
-- **Framework**: Next.js 14 with App Router
-- **Language**: TypeScript
-- **Pose Detection**: MediaPipe Tasks (@mediapipe/tasks-vision)
-- **Styling**: Tailwind CSS
-- **Performance**: Web Workers for off-main-thread processing
-
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
 
-- Node.js 18+ 
-- Modern browser with WebRTC support
-- HTTPS or localhost (required for camera access)
+- Node.js 18+ (LTS recommended)
+- npm or yarn package manager
+- A modern web browser with camera support
+- HTTPS connection (required for camera access)
 
 ### Installation
 
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd HTN-2025
-```
+1. **Clone the repository**
 
-2. Install dependencies:
-```bash
-npm install
-```
+   ```bash
+   git clone https://github.com/your-username/PostureGuard-AI.git
+   cd PostureGuard-AI
+   ```
 
-3. Start the development server:
-```bash
-npm run dev
-```
+2. **Install dependencies**
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser
+   ```bash
+   npm install
+   # or
+   yarn install
+   ```
+
+3. **Run the development server**
+
+   ```bash
+   npm run dev
+   # or
+   yarn dev
+   ```
+
+4. **Open your browser**
+   Navigate to [http://localhost:3000](http://localhost:3000)
 
 ### Production Build
 
 ```bash
+# Build the application
 npm run build
+
+# Start the production server
 npm start
 ```
 
-## Usage
+## 🎯 How It Works
 
-1. **Allow camera access** when prompted
-2. **Position yourself** in front of the camera with good lighting
-3. **Click "Start Detection"** to begin monitoring
-4. **Keep your entire body visible** in the frame for best results
-5. **Follow the posture tips** displayed in real-time
+### Core Technologies
 
-## Browser Compatibility
+1. **MediaPipe Tasks Vision**: Google's advanced pose detection model
 
-- Chrome 80+
-- Firefox 75+
-- Safari 13+
-- Edge 80+
+   - Uses the heavy pose landmarker model for accuracy
+   - Detects 33 3D landmarks on the human body
+   - Runs entirely in the browser using WebAssembly
 
-## Performance Tips
+2. **Real-Time Analysis Engine**
 
-- Use a well-lit environment for better landmark detection
-- Ensure your entire upper body is visible in the frame
-- Close other camera-using applications
-- Use a modern device with good processing power for smooth performance
+   - Calculates key posture angles (neck, trunk, limbs)
+   - Applies smoothing filters to reduce noise
+   - Provides instant feedback on posture quality
 
-## Architecture
+3. **Advanced Metrics**
+   - **Craniovertebral Angle (CVA)**: Head position relative to shoulders
+   - **Trunk Flexion**: Spine alignment with vertical axis
+   - **Pelvic Tilt**: Hip alignment and stability
+   - **Elbow Angle**: Upper limb positioning
+   - **Knee Angle**: Lower limb positioning
+   - **Confidence Score**: Tracking quality assessment
 
+### Usage Instructions
+
+1. **Camera Setup**
+
+   - Allow camera access when prompted
+   - Select your preferred camera from the dropdown
+   - Position yourself so your upper body is visible
+
+2. **Start Detection**
+
+   - Click "Start Camera" to begin video feed
+   - Click "Start Detection" to begin pose analysis
+   - Ensure good lighting for optimal results
+
+3. **Monitor Your Posture**
+   - Watch the real-time metrics update
+   - Follow the color-coded status indicators:
+     - 🟢 **Green**: Good posture
+     - 🟡 **Yellow**: Needs improvement
+     - 🔴 **Red**: Poor posture
+   - Read the tips and recommendations provided
+
+## 🧠 Technical Details
+
+### Pose Analysis Pipeline
+
+```typescript
+// Core analysis flow
+Camera Feed → MediaPipe Model → Pose Landmarks →
+Angle Calculations → Smoothing Filters →
+Classification → User Feedback
 ```
-/app
-  page.tsx                # Main pose detection page
-  layout.tsx              # Root layout with metadata
-/components
-  PoseDetection.tsx       # Webcam, MediaPipe, canvas overlay
-  PostureAnalyzer.tsx     # Angle calculations & classification
-/lib
-  poseUtils.ts            # Types, math utils, analysis functions
-/workers
-  poseWorker.ts           # Optional Web Worker for inference
-/styles
-  globals.css             # Global styles and Tailwind imports
-```
 
-## Development
+### Key Algorithms
 
-### Key Components
-
-- **PoseDetection**: Handles webcam access, MediaPipe initialization, and real-time detection
-- **PostureAnalyzer**: Processes landmarks to calculate posture metrics and provide feedback
-- **poseUtils**: Contains all the math utilities and analysis algorithms
-
-### MediaPipe Integration
-
-The app uses the latest MediaPipe Tasks API with the Pose Landmarker model:
-
-- 33 pose landmarks with image and world coordinates
-- Real-time video mode with GPU acceleration
-- Confidence-based landmark filtering
-- Skeleton visualization with connections
+- **Angle Calculation**: Vector-based angle computation between body landmarks
+- **Smoothing**: Moving average and One-Euro filters for stable readings
+- **Classification**: Rule-based posture assessment with configurable thresholds
+- **Ergonomic Scoring**: Weighted composite score across multiple metrics
 
 ### Performance Optimizations
 
-- RequestAnimationFrame for smooth video processing
-- Smoothing filters to reduce jitter in posture analysis
-- Optional Web Worker for off-main-thread inference
-- Efficient canvas rendering with landmark confidence gating
+- Efficient landmark processing at 30 FPS
+- Selective rendering to minimize GPU usage
+- Smart throttling for UI updates
+- Memory-efficient filter implementations
 
-## Contributing
+## 🛠️ Development
+
+### Tech Stack
+
+- **Framework**: Next.js 14 with App Router
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **UI Components**: shadcn/ui (Radix UI primitives)
+- **AI/ML**: MediaPipe Tasks Vision
+- **Build Tool**: Next.js built-in bundler
+
+### Scripts
+
+```bash
+npm run dev      # Start development server
+npm run build    # Build for production
+npm run start    # Start production server
+npm run lint     # Run ESLint
+```
+
+### Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## License
+## 🔒 Privacy & Security
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+- **Local Processing**: All pose detection runs in your browser
+- **No Data Collection**: Camera data never leaves your device
+- **No Server Required**: Fully client-side application
+- **HTTPS Enforced**: Secure camera access protocols
+- **Open Source**: Transparent and auditable codebase
 
-## Acknowledgments
+## 📊 Supported Metrics
 
-- [MediaPipe](https://mediapipe.dev/) for the pose detection technology
-- [Next.js](https://nextjs.org/) for the React framework
-- [Tailwind CSS](https://tailwindcss.com/) for styling
+| Metric        | Description                   | Optimal Range | Status    |
+| ------------- | ----------------------------- | ------------- | --------- |
+| Neck Angle    | Head alignment with vertical  | 0-15°         | ✅ Active |
+| Trunk Flexion | Spine curvature from vertical | 0-15°         | ✅ Active |
+| Elbow Angle   | Upper arm to forearm angle    | 90-110°       | ✅ Active |
+| Knee Angle    | Thigh to shin angle           | 80-110°       | ✅ Active |
+| Pelvic Tilt   | Hip alignment deviation       | ±10°          | ✅ Active |
+| Confidence    | Landmark detection quality    | >80%          | ✅ Active |
+
+## 🌐 Browser Compatibility
+
+- Chrome 88+ (Recommended)
+- Firefox 85+
+- Safari 14+
+- Edge 88+
+
+**Note**: Camera access requires HTTPS in production environments.
+
+## 📜 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🤝 Acknowledgments
+
+- **MediaPipe Team** for the excellent pose detection models
+- **Google** for MediaPipe Tasks Vision
+- **Vercel** for Next.js framework
+- **shadcn** for the beautiful UI components
+- **Radix UI** for accessible primitives
+
+## 📞 Support
+
+For questions, issues, or feature requests:
+
+- Open an issue on GitHub
+- Check existing documentation
+- Review the code examples in the repository
+
+---
+
+Built with ❤️ for HTN 2025 • [Live Demo](https://your-domain.com) • [GitHub](https://github.com/anthonyhana04/PostureGuard-AI)
