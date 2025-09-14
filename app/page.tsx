@@ -1,106 +1,104 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import PoseDetection from '@/components/PoseDetection';
 import PostureAnalyzer from '@/components/PostureAnalyzer';
 import { PostureAnalysis } from '@/lib/poseUtils';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
 export default function Home() {
   const [currentAnalysis, setCurrentAnalysis] = useState<PostureAnalysis | null>(null);
   const [landmarks, setLandmarks] = useState<any>(null);
   const [showInstructions, setShowInstructions] = useState(true);
 
-  const handlePostureUpdate = (analysis: PostureAnalysis) => {
+  const handlePostureUpdate = useCallback((analysis: PostureAnalysis) => {
     setCurrentAnalysis(analysis);
-  };
+  }, []);
 
-  const handleLandmarksUpdate = (landmarkData: any) => {
+  const handleLandmarksUpdate = useCallback((landmarkData: any) => {
     setLandmarks(landmarkData);
-  };
+  }, []);
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-800 mb-4">
-            Real-Time Posture Detection
-          </h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Monitor your posture in real-time using AI-powered pose detection. 
-            Get instant feedback and tips to improve your sitting posture.
-          </p>
+    <div className="space-y-10">
+      {/* Hero */}
+      <section className="text-center">
+        <Badge variant="secondary" className="mb-3">HTN 2025 Project</Badge>
+        <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-3">Real‑Time Posture Detection</h1>
+        <p className="text-muted-foreground max-w-2xl mx-auto">
+          Monitor your posture live with AI pose detection and get instant feedback to improve your sitting habits.
+        </p>
+        <div className="mt-6 flex items-center justify-center gap-3">
+          <Button onClick={() => setShowInstructions(true)}>How it works</Button>
+          <a href="#app" className="text-sm underline text-muted-foreground hover:text-foreground">Skip to app</a>
         </div>
+      </section>
 
-        {/* Instructions Modal */}
-        {showInstructions && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-8 max-w-md mx-4">
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">
-                Getting Started
-              </h2>
-              <div className="space-y-3 text-gray-600">
-                <p>1. Allow camera access when prompted</p>
-                <p>2. Position yourself in front of the camera</p>
-                <p>3. Click "Start Detection" to begin monitoring</p>
-                <p>4. Keep your entire body visible in the frame</p>
-                <p>5. Ensure good lighting for best results</p>
-              </div>
-              <div className="mt-6 flex gap-3">
-                <button
-                  onClick={() => setShowInstructions(false)}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                >
-                  Got it!
-                </button>
-                <button
-                  onClick={() => window.location.reload()}
-                  className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
-                >
-                  Refresh
-                </button>
-              </div>
+      {showInstructions && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center px-4">
+          <div className="w-full max-w-lg rounded-lg border bg-background p-6 shadow-lg">
+            <div className="mb-3">
+              <h3 className="text-lg font-semibold leading-none tracking-tight">Getting Started</h3>
+              <p className="text-sm text-muted-foreground">Follow these steps for best results.</p>
+            </div>
+            <ul className="space-y-2 text-sm text-muted-foreground">
+              <li>1. Allow camera access when prompted</li>
+              <li>2. Sit facing the camera with your upper body visible</li>
+              <li>3. Click Start Camera, then Start Detection</li>
+              <li>4. Keep good lighting and avoid occlusions</li>
+              <li>5. Watch your status and tips update in real time</li>
+            </ul>
+            <div className="flex gap-3 pt-4">
+              <Button className="flex-1" onClick={() => setShowInstructions(false)}>Got it</Button>
+              <Button variant="secondary" className="flex-1" onClick={() => window.location.reload()}>Refresh</Button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Main Content - Split Layout */}
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Left Side - Camera */}
-            <div className="space-y-4">
-              <h2 className="text-2xl font-semibold text-gray-800 text-center">Live Camera Feed</h2>
+      {/* App Section */}
+      <section id="app" className="max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader className="text-center">
+              <CardTitle>Live Camera Feed</CardTitle>
+              <CardDescription>Start the camera and begin detection to see your pose.</CardDescription>
+            </CardHeader>
+            <CardContent>
               <PoseDetection 
                 onPostureUpdate={handlePostureUpdate}
                 onLandmarksUpdate={handleLandmarksUpdate}
               />
-            </div>
-            
-            {/* Right Side - Metrics */}
-            <div className="space-y-4">
-              <h2 className="text-2xl font-semibold text-gray-800 text-center">Posture Analysis</h2>
-              <div className="max-h-screen overflow-y-auto pr-2">
-                {landmarks && (
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="text-center">
+              <CardTitle>Posture Analysis</CardTitle>
+              <CardDescription>Smoothed metrics and tips updated in real time.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="max-h-[70vh] overflow-y-auto pr-2">
+                {landmarks ? (
                   <PostureAnalyzer
                     landmarks={landmarks}
                     onPostureUpdate={handlePostureUpdate}
                   />
+                ) : (
+                  <div className="text-center text-sm text-muted-foreground">No data yet. Start the camera to begin.</div>
                 )}
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
+      </section>
 
-        {/* Footer Info */}
-        <div className="mt-12 text-center text-gray-500">
-          <p className="mb-2">
-            Built with Next.js 14, MediaPipe Tasks, and TypeScript
-          </p>
-          <p className="text-sm">
-            This app runs entirely in your browser - no data is sent to external servers.
-          </p>
-        </div>
+      {/* Footer info inline with layout footer */}
+      <div className="text-center text-muted-foreground text-sm">
+        This runs entirely in your browser. No external servers receive camera data.
       </div>
-    </main>
+    </div>
   );
 }

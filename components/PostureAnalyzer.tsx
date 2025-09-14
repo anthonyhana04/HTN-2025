@@ -132,39 +132,39 @@ export default function PostureAnalyzer({ landmarks, onPostureUpdate }: PostureA
   return (
     <div className="mt-6 space-y-4">
       {/* Real-time Angle Display */}
-      <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 border-2 border-blue-200">
-        <h3 className="text-lg font-bold text-gray-800 mb-3 text-center">Live Posture Angles</h3>
+      <div className="rounded-lg p-4 border bg-card text-card-foreground">
+        <h3 className="text-lg font-bold mb-3 text-center">Live Posture Angles</h3>
         <div className="grid grid-cols-2 gap-4">
           <div className="text-center">
             <div className="text-2xl font-bold text-blue-600">
               {smoothedAnalysis.metrics.headNeckAngle.toFixed(1)}°
             </div>
-            <div className="text-sm text-gray-600">Neck Angle</div>
+            <div className="text-sm text-muted-foreground">Neck Angle</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-purple-600">
               {smoothedAnalysis.metrics.trunkFlexion.toFixed(1)}°
             </div>
-            <div className="text-sm text-gray-600">Trunk Angle</div>
+            <div className="text-sm text-muted-foreground">Trunk Angle</div>
           </div>
         </div>
       </div>
 
       {/* Main Status Display */}
-      <div className="bg-white rounded-lg shadow-lg p-6">
+      <div className="rounded-lg border bg-card text-card-foreground p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-semibold text-gray-800">Posture Status</h3>
+          <h3 className="text-xl font-semibold">Posture Status</h3>
           <div className={`status-badge ${getStatusColor(smoothedAnalysis.status)}`}>
             <span className="mr-2">{getStatusIcon(smoothedAnalysis.status)}</span>
             {smoothedAnalysis.status.charAt(0).toUpperCase() + smoothedAnalysis.status.slice(1).replace('-', ' ')}
           </div>
         </div>
 
-        <p className="text-gray-600 mb-4">{smoothedAnalysis.message}</p>
+        <p className="text-muted-foreground mb-4">{smoothedAnalysis.message}</p>
 
         {/* Confidence Bar */}
         <div className="mb-4">
-          <div className="flex justify-between text-sm text-gray-600 mb-2">
+          <div className="flex justify-between text-sm text-muted-foreground mb-2">
             <span>Tracking Quality</span>
             <span>{getConfidenceLabel(smoothedAnalysis.metrics.confidence)}</span>
           </div>
@@ -178,15 +178,15 @@ export default function PostureAnalyzer({ landmarks, onPostureUpdate }: PostureA
       </div>
 
       {/* Main Posture Angles Display */}
-      <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-        <h3 className="text-xl font-bold text-gray-800 mb-4 text-center">Posture Analysis</h3>
+      <div className="rounded-lg border bg-card text-card-foreground p-6 mb-6">
+        <h3 className="text-xl font-bold mb-4 text-center">Posture Analysis</h3>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Neck Angle */}
           <div className="text-center">
             <div className="mb-2">
-              <h4 className="text-lg font-semibold text-gray-700">Neck Angle</h4>
-              <p className="text-sm text-gray-500">Head alignment with vertical</p>
+              <h4 className="text-lg font-semibold">Neck Angle</h4>
+              <p className="text-sm text-muted-foreground">Head alignment with vertical</p>
             </div>
             <div className="relative inline-block">
               <div className="text-4xl font-bold text-blue-600 mb-2">
@@ -201,7 +201,7 @@ export default function PostureAnalyzer({ landmarks, onPostureUpdate }: PostureA
                   style={{ width: `${Math.min(100, (smoothedAnalysis.metrics.headNeckAngle / 30) * 100)}%` }}
                 />
               </div>
-              <div className="text-sm text-gray-600 mt-1">
+              <div className="text-sm text-muted-foreground mt-1">
                 {smoothedAnalysis.metrics.headNeckAngle <= 15 ? '✅ Good' : 
                  smoothedAnalysis.metrics.headNeckAngle <= 25 ? '⚠️ Moderate' : '❌ Poor'}
               </div>
@@ -211,8 +211,8 @@ export default function PostureAnalyzer({ landmarks, onPostureUpdate }: PostureA
           {/* Trunk Angle */}
           <div className="text-center">
             <div className="mb-2">
-              <h4 className="text-lg font-semibold text-gray-700">Trunk Angle</h4>
-              <p className="text-sm text-gray-500">Spine alignment with vertical</p>
+              <h4 className="text-lg font-semibold">Trunk Angle</h4>
+              <p className="text-sm text-muted-foreground">Spine alignment with vertical</p>
             </div>
             <div className="relative inline-block">
               {smoothedAnalysis.metrics.spineVisible ? (
@@ -220,7 +220,7 @@ export default function PostureAnalyzer({ landmarks, onPostureUpdate }: PostureA
                   {smoothedAnalysis.metrics.trunkFlexion.toFixed(1)}°
                 </div>
               ) : (
-                <div className="text-4xl font-bold text-gray-500 mb-2">
+                <div className="text-4xl font-bold text-muted-foreground mb-2">
                   Spine not in view
                 </div>
               )}
@@ -234,7 +234,7 @@ export default function PostureAnalyzer({ landmarks, onPostureUpdate }: PostureA
                   style={{ width: `${!smoothedAnalysis.metrics.spineVisible ? 0 : Math.min(100, (smoothedAnalysis.metrics.trunkFlexion / 40) * 100)}%` }}
                 />
               </div>
-              <div className="text-sm text-gray-600 mt-1">
+              <div className="text-sm text-muted-foreground mt-1">
                 {!smoothedAnalysis.metrics.spineVisible ? '⚪ Spine not in view' :
                  smoothedAnalysis.metrics.trunkFlexion <= 15 ? '✅ Good' : 
                  smoothedAnalysis.metrics.trunkFlexion <= 25 ? '⚠️ Moderate' : '❌ Poor'}
@@ -248,28 +248,28 @@ export default function PostureAnalyzer({ landmarks, onPostureUpdate }: PostureA
 
       {/* Detailed Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg shadow p-4">
-          <h4 className="font-medium text-gray-700 mb-2">Raw Neck Angle</h4>
+        <div className="rounded-lg border bg-card text-card-foreground p-4">
+          <h4 className="font-medium mb-2">Raw Neck Angle</h4>
           <div className="text-2xl font-bold text-blue-600">
             {analysis.metrics.headNeckAngle.toFixed(1)}°
           </div>
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-muted-foreground">
             Smoothed: {smoothedAnalysis.metrics.headNeckAngle.toFixed(1)}°
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-4">
-          <h4 className="font-medium text-gray-700 mb-2">Raw Trunk Angle</h4>
+        <div className="rounded-lg border bg-card text-card-foreground p-4">
+          <h4 className="font-medium mb-2">Raw Trunk Angle</h4>
           {analysis.metrics.spineVisible ? (
             <div className="text-2xl font-bold text-purple-600">
               {analysis.metrics.trunkFlexion.toFixed(1)}°
             </div>
           ) : (
-            <div className="text-2xl font-bold text-gray-500">
+            <div className="text-2xl font-bold text-muted-foreground">
               Spine not in view
             </div>
           )}
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-muted-foreground">
             {smoothedAnalysis.metrics.spineVisible ? (
               <>Smoothed: {smoothedAnalysis.metrics.trunkFlexion.toFixed(1)}°</>
             ) : (
@@ -279,46 +279,46 @@ export default function PostureAnalyzer({ landmarks, onPostureUpdate }: PostureA
         </div>
 
         {/* Knee Angle */}
-        <div className="bg-white rounded-lg shadow p-4">
-          <h4 className="font-medium text-gray-700 mb-2">Knee Angle</h4>
+        <div className="rounded-lg border bg-card text-card-foreground p-4">
+          <h4 className="font-medium mb-2">Knee Angle</h4>
           <div className="text-2xl font-bold text-teal-600">
             {sittingMetrics?.kneeDeg.visible ? `${sittingMetrics.kneeDeg.value.toFixed(1)}°` : 'N/A'}
           </div>
-          <div className="text-sm text-gray-500">Higher within 80–110° is generally better</div>
+          <div className="text-sm text-muted-foreground">Higher within 80–110° is generally better</div>
         </div>
       </div>
 
       {/* Additional Upper Limb Metric */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-        <div className="bg-white rounded-lg shadow p-4">
-          <h4 className="font-medium text-gray-700 mb-2">Elbow Angle</h4>
+        <div className="rounded-lg border bg-card text-card-foreground p-4">
+          <h4 className="font-medium mb-2">Elbow Angle</h4>
           <div className="text-2xl font-bold text-amber-600">
             {sittingMetrics?.elbowDeg.visible ? `${sittingMetrics.elbowDeg.value.toFixed(1)}°` : 'N/A'}
           </div>
-          <div className="text-sm text-gray-500">Target around 90–110°</div>
+          <div className="text-sm text-muted-foreground">Target around 90–110°</div>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <h4 className="font-medium text-gray-700 mb-2">Pelvic Tilt</h4>
+        <div className="rounded-lg border bg-card text-card-foreground p-4">
+          <h4 className="font-medium mb-2">Pelvic Tilt</h4>
           <div className="text-2xl font-bold text-indigo-600">
             {sittingMetrics?.pelvicTiltDeg.visible ? `${sittingMetrics.pelvicTiltDeg.value.toFixed(1)}°` : 'N/A'}
           </div>
-          <div className="text-sm text-gray-500">Lower absolute angle is generally better</div>
+          <div className="text-sm text-muted-foreground">Lower absolute angle is generally better</div>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <h4 className="font-medium text-gray-700 mb-2">Confidence</h4>
+        <div className="rounded-lg border bg-card text-card-foreground p-4">
+          <h4 className="font-medium mb-2">Confidence</h4>
           <div className="text-2xl font-bold text-green-600">
             {(smoothedAnalysis.metrics.confidence * 100).toFixed(0)}%
           </div>
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-muted-foreground">
             Tracking quality
           </div>
         </div>
       </div>
 
       {/* Tips and Recommendations */}
-      <div className="bg-blue-50 rounded-lg p-4">
-        <h4 className="font-medium text-blue-800 mb-2">💡 Posture Tips</h4>
-        <ul className="text-sm text-blue-700 space-y-1">
+      <div className="rounded-lg border bg-card text-card-foreground p-4">
+        <h4 className="font-medium mb-2">💡 Posture Tips</h4>
+        <ul className="text-sm text-muted-foreground space-y-1">
           {smoothedAnalysis.status === 'good' && (
             <li>• Keep up the great posture! Remember to take breaks every 30 minutes.</li>
           )}

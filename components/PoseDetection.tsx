@@ -1,26 +1,29 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { PoseLandmarker, FilesetResolver, PoseLandmarkerResult } from '@mediapipe/tasks-vision';
 import { PoseLandmarks, PostureAnalysis } from '@/lib/poseUtils';
 import PostureAnalyzer from './PostureAnalyzer';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface PoseDetectionProps {
   onPostureUpdate?: (analysis: PostureAnalysis) => void;
   onLandmarksUpdate?: (landmarks: PoseLandmarks) => void;
 }
 
-export default function PoseDetection({ onPostureUpdate, onLandmarksUpdate }: PoseDetectionProps) {
+function PoseDetection({ onPostureUpdate, onLandmarksUpdate }: PoseDetectionProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const poseLandmarkerRef = useRef<PoseLandmarker | null>(null);
   const animationRef = useRef<number | null>(null);
   const lastVideoTimeRef = useRef<number>(-1);
+  const lastEmitRef = useRef<number>(0);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
-  const [landmarks, setLandmarks] = useState<PoseLandmarks | null>(null);
+  // Avoid per-frame re-renders: do not store landmarks in local state
   const [videoReady, setVideoReady] = useState(false);
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
@@ -299,24 +302,22 @@ export default function PoseDetection({ onPostureUpdate, onLandmarksUpdate }: Po
     lastVideoTimeRef.current = video.currentTime;
 
     try {
-      console.log('Running pose detection...');
-      const result = poseLandmarker.detectForVideo(video, performance.now());
-      console.log('Detection result:', result);
+      const now = performance.now();
+      const result = poseLandmarker.detectForVideo(video, now);
       
       if (result.landmarks && result.landmarks.length > 0) {
-        console.log('Found landmarks:', result.landmarks[0].length);
         const poseData: PoseLandmarks = {
           landmarks: result.landmarks[0],
           worldLandmarks: result.worldLandmarks?.[0]
         };
         
-        setLandmarks(poseData);
-        if (onLandmarksUpdate) {
+        if (onLandmarksUpdate && now - lastEmitRef.current > 100) {
+          lastEmitRef.current = now;
           onLandmarksUpdate(poseData);
         }
         drawPoseLandmarks(result);
       } else {
-        console.log('No landmarks detected');
+        // no-op
       }
     } catch (err) {
       console.error('Pose detection error:', err);
@@ -389,7 +390,7 @@ export default function PoseDetection({ onPostureUpdate, onLandmarksUpdate }: Po
       <div className="flex items-center justify-center p-8">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading pose detection...</p>
+          <p className="text-muted-foreground">Loading pose detection...</p>
         </div>
       </div>
     );
@@ -400,13 +401,8 @@ export default function PoseDetection({ onPostureUpdate, onLandmarksUpdate }: Po
       <div className="flex items-center justify-center p-8">
         <div className="text-center">
           <div className="text-red-500 text-6xl mb-4">⚠️</div>
-          <p className="text-red-600 mb-4">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Refresh Page
-          </button>
+          <p className="text-destructive mb-4">{error}</p>
+          <Button onClick={() => window.location.reload()}>Refresh Page</Button>
         </div>
       </div>
     );
@@ -417,7 +413,7 @@ export default function PoseDetection({ onPostureUpdate, onLandmarksUpdate }: Po
       <div className="pose-container relative inline-block">
         <video
           ref={videoRef}
-          className="pose-video w-full max-w-2xl h-auto border-2 border-gray-300 rounded-lg"
+          className="pose-video w-full max-w-2xl h-auto border rounded-lg border-border"
           playsInline
           muted
           autoPlay
@@ -430,7 +426,7 @@ export default function PoseDetection({ onPostureUpdate, onLandmarksUpdate }: Po
         />
       </div>
       
-      <div className="mt-4 p-4 bg-gray-100 rounded text-sm hidden">
+      <div className="mt-4 p-4 bg-muted rounded text-sm hidden">
         <p>Video Status: {videoRef.current ? 'Element exists' : 'No element'}</p>
         <p>Video Dimensions: {videoRef.current ? `${videoRef.current.videoWidth}x${videoRef.current.videoHeight}` : 'Unknown'}</p>
         <p>Video Ready State: {videoRef.current ? videoRef.current.readyState : 'Unknown'}</p>
@@ -439,43 +435,32 @@ export default function PoseDetection({ onPostureUpdate, onLandmarksUpdate }: Po
         <p>Detection Status: {isDetecting ? 'Running' : 'Stopped'}</p>
       </div>
 
-      <div className="mt-4 flex gap-4 justify-center">
-        {videoDevices.length > 0 && (
-          <select
-            className="px-3 py-2 border rounded"
-            value={selectedDeviceId || ''}
-            onChange={(e) => switchCamera(e.target.value)}
+      <div className="mt-4 flex flex-col sm:flex-row gap-4 justify-center items-center">
+        {!isDetecting && videoDevices.length > 0 && (
+          <Select
+            value={selectedDeviceId || undefined}
+            onValueChange={(v) => switchCamera(v)}
             disabled={!videoReady && !videoRef.current?.srcObject}
           >
-            {videoDevices.map((d, i) => (
-              <option key={d.deviceId || i} value={d.deviceId}>
-                {d.label || `Camera ${i + 1}`}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-[260px]"><SelectValue placeholder="Select camera" /></SelectTrigger>
+            <SelectContent>
+              {videoDevices.map((d, i) => (
+                <SelectItem key={d.deviceId || i} value={d.deviceId || ''}>
+                  {d.label || `Camera ${i + 1}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )}
-        <button
-          onClick={() => startWebcam()}
-          className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
-          Start Camera
-        </button>
-        <button
-          onClick={isDetecting ? stopDetection : startDetection}
-          className={`px-6 py-2 rounded font-medium ${
-            isDetecting
-              ? 'bg-red-600 text-white hover:bg-red-700'
-              : videoReady
-              ? 'bg-green-600 text-white hover:bg-green-700'
-              : 'bg-gray-400 text-white cursor-not-allowed'
-          }`}
-          disabled={!videoReady || isDetecting}
-        >
+        <Button onClick={() => startWebcam()} variant="default">Start Camera</Button>
+        <Button onClick={isDetecting ? stopDetection : startDetection} variant={isDetecting ? 'destructive' : 'secondary'} disabled={!videoReady || isDetecting}>
           {isDetecting ? 'Stop Detection' : videoReady ? 'Start Detection' : 'Video Not Ready'}
-        </button>
+        </Button>
       </div>
 
       {/* PostureAnalyzer is now handled in the main page layout */}
     </div>
   );
 }
+
+export default React.memo(PoseDetection)
